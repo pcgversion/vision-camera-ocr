@@ -130,5 +130,6 @@ dependencies {
 
   implementation project(':react-native-vision-camera')
   implementation 'com.google.android.gms:play-services-mlkit-text-recognition:18.0.0'
-  implementation "androidx.camera:camera-core:1.1.0-alpha08"
+  //implementation "androidx.camera:camera-core:1.1.0-alpha08"
+  implementation "androidx.camera:camera-core:1.2.3"
 }
