@@ -298,9 +298,8 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
             //print("Recognized text: \(topCandidate.string)")
             
             stringBlocks.append(topCandidate.string)
-            /
-            / You can also get the bounding box of the recognized text
-            //print("Bounding box: \(observation.boundingBox) \(image.size.width)x\(image.size.height)")
+            // You can also get the bounding box of the recognized text
+            
 
             let imageSize = CGSize(width: image.size.width, height: image.size.height) // Actual size of the image
             //convert the text recoginition data to real pixels data to map on image
