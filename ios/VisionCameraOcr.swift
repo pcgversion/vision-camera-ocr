@@ -161,7 +161,9 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
         }
 
         var ciImage = CIImage(cvPixelBuffer: imageBuffer)
-        let curDeviceOrientation = UIDevice.current.orientation
+        var curDeviceOrientation = UIDevice.current.orientation
+        let isLandscape = isDeviceInLandscapeWhenFaceUp()
+        //print("current Device Orientation: \(curDeviceOrientation) \(isLandscape)")
         switch curDeviceOrientation {
             case UIDeviceOrientation.portraitUpsideDown:  // Device oriented vertically, Home button on the top
                 ciImage = ciImage.oriented(forExifOrientation: 3)
@@ -172,8 +174,10 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
             case UIDeviceOrientation.portrait:            // Device oriented vertically, Home button on the bottom
                 ciImage = ciImage.oriented(forExifOrientation: 1)
             case UIDeviceOrientation.faceUp:
-                ciImage = ciImage.oriented(forExifOrientation: 3)
-            case UIDeviceOrientation.faceDown, UIDeviceOrientation.unknown:
+            ciImage = ciImage.oriented(forExifOrientation: isLandscape ? 3 : 1)
+            case UIDeviceOrientation.faceDown:
+                ciImage = ciImage.oriented(forExifOrientation: isLandscape ? 3 : 1)
+            case UIDeviceOrientation.unknown:
                 ciImage = ciImage.oriented(forExifOrientation: 1)
             default:
                 ciImage = ciImage.oriented(forExifOrientation: 1)
@@ -300,13 +304,12 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
             stringBlocks.append(topCandidate.string)
             // You can also get the bounding box of the recognized text
             
-
             let imageSize = CGSize(width: image.size.width, height: image.size.height) // Actual size of the image
             //convert the text recoginition data to real pixels data to map on image
             let data = convert(observation.boundingBox, to: CGRect(origin: .zero, size: imageSize))
             
             var textBlock: [String: Any] = [:]
-            print("data: \(data) \(data["x"])")
+            //print("data: \(data) \(data["x"])")
             var height = data["height"] as! CGFloat
             var width = data["width"] as! CGFloat
             var top = data["y"] as! CGFloat
@@ -386,4 +389,21 @@ func convert(_ boundingBox: CGRect, to bounds: CGRect) -> [String: Any] {
 
     let data: [String: CGFloat] = ["x": rect.origin.x, "y": rect.origin.y, "width": rect.size.width, "height": rect.size.height]
     return data
+}
+
+func isDeviceInLandscapeWhenFaceUp() -> Bool {
+    let orientation = UIDevice.current.orientation
+    
+    // If the device is face up, check the interface orientation
+    if orientation == .faceUp {
+        // Get the current interface orientation
+        let interfaceOrientation = UIApplication.shared.windows.first?.windowScene?.interfaceOrientation
+        
+        if let interfaceOrientation = interfaceOrientation {
+            return interfaceOrientation.isLandscape
+        }
+    }
+    
+    // Otherwise, check if the current device orientation is landscape
+    return orientation == .landscapeLeft || orientation == .landscapeRight
 }
