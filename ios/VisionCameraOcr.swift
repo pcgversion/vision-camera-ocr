@@ -8,6 +8,7 @@ import CoreMedia
 import CoreVideo
 import CoreImage
 import ImageIO
+import CoreML
 
 // Define the structure for a block (can be expanded based on the actual data you expect)
 struct FrameData: Codable{
@@ -199,7 +200,8 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
        
         /*** Google MLKit Vision Code ***/
         //let visionImage = VisionImage(image: image)
-        //visionImage.orientation = .up
+        //let visionImage = MLImage(image: mlImage)
+        //visionImage.orientation = image.imageOrientation
        
         // if let pngData = image.pngData() {
         //     // Define file path where you want to save the image
