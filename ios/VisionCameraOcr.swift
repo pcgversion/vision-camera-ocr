@@ -9,6 +9,7 @@ import CoreVideo
 import CoreImage
 import ImageIO
 import CoreML
+import opencv2
 
 // Define the structure for a block (can be expanded based on the actual data you expect)
 struct FrameData: Codable{
@@ -48,7 +49,7 @@ struct ResultData: Codable {
 struct RootObject: Codable {
     var result: ResultData
 }
-   
+
 
 @objc(OCRFrameProcessorPlugin)
 public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
@@ -292,16 +293,100 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
         }
         
     }
-    
+
+    func calculateBrightness(image: UIImage) -> Double? {
+        guard let mat = try? Mat(uiImage: image) else {
+            print("Failed to convert UIImage to Mat")
+            return nil
+        }
+
+        // Convert to grayscale
+        let grayMat = Mat()
+        Imgproc.cvtColor(src: mat, dst: grayMat, code: .COLOR_BGR2GRAY)
+
+        // Create DoubleVector for mean and stddev
+        let mean = DoubleVector()
+        let stddev = DoubleVector()
+
+        // Calculate mean and standard deviation
+        Core.meanStdDev(src: grayMat, mean: mean, stddev: stddev)
+
+        // Access the first element from the mean vector
+        let brightness = mean.get(0)
+        
+        // Check if brightness is valid
+        if brightness.isNaN {
+            print("Failed to calculate mean brightness")
+            return nil
+        }
+
+        // No need for explicit release; ARC handles it
+        return brightness
+    }
+
+
+    func calculateSharpness(image: UIImage) -> Double? {
+        // Convert UIImage to OpenCV Mat
+        guard let mat = try? Mat(uiImage: image) else {
+            print("Failed to convert UIImage to Mat")
+            return nil
+        }
+
+        // Convert to grayscale
+        Imgproc.cvtColor(src: mat, dst: mat, code: .COLOR_BGR2GRAY)
+
+        // Apply Laplacian operator to detect edges
+        let laplacianMat = Mat()
+        Imgproc.Laplacian(src: mat, dst: laplacianMat, ddepth: CvType.CV_64F)
+
+        // Compute mean and standard deviation
+        let mean = DoubleVector()
+        let stddev = DoubleVector()
+        Core.meanStdDev(src: laplacianMat, mean: mean, stddev: stddev)
+
+        // Try to access the first element of the stddev vector
+        let sharpnessScore = stddev.get(0)
+        
+        if sharpnessScore.isNaN {
+            print("Failed to calculate sharpness score.")
+            return nil
+        }
+
+        // No need for explicit release; ARC handles it
+        return sharpnessScore
+    }
+
     // Handle the text recognition results
     func handleTextRecognitionResults(results: [Any]?, image: UIImage) -> Any! {
         guard let observations = results as? [VNRecognizedTextObservation] else { return nil }
         var stringBlocks:[String] = []
         var textBlocks:[Any] = []
         var finalBlocks:[Any] = []
+        //
+        
+        // Calculate brightness
+        let brightness = calculateBrightness(image: image)
+        if let brightnessValue = brightness {
+            print("Image Brightness: \(brightnessValue)")
+        } else {
+            print("Failed to calculate image brightness.")
+        }
+
+        //calculate sharpness
+        let sharpness = calculateSharpness(image: image)
+        if let sharpnessValue = sharpness {
+            print("Image Sharpness: \(sharpnessValue)")
+        } else {
+            print("Failed to calculate image sharpness.")
+        }
+        print("");
+        print("");
+        //
         for observation in observations {
             guard let topCandidate = observation.topCandidates(1).first else { continue }
             //print("Recognized text: \(topCandidate.string)")
+   
+            let confidence: VNConfidence = topCandidate.confidence
             
             stringBlocks.append(topCandidate.string)
             // You can also get the bounding box of the recognized text
@@ -347,6 +432,7 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
             lineObject["frame"] = textBlock["frame"]
             lineObject["cornerPoints"] = textBlock["cornerPoints"]
             lineObject["frame"] = textBlock["frame"]
+            lineObject["confidence"] = confidence
 
             textBlock["lines"] = [lineObject]
             textBlocks.append(textBlock);
@@ -367,6 +453,8 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
             "result": [
                 "text": stringBlocks.joined(separator: "\n"),
                 "blocks":textBlocks,
+                "brightness": brightness ?? 0.0,
+                "sharpness": sharpness ?? 0.0
             ]
         ]
         
