@@ -17,4 +17,19 @@ Pod::Spec.new do |s|
 
   s.dependency "React-Core"
   s.dependency "GoogleMLKit/TextRecognition", "4.0.0"
+
+  # Swift/Obj-C bridging
+  s.pod_target_xcconfig = {
+
+    # OpenCV headers path
+    'FRAMEWORK_SEARCH_PATHS' => '$(PODS_ROOT)/opencv2.framework',
+
+    # OpenCV headers path
+    'HEADER_SEARCH_PATHS' => '$(PODS_ROOT)/opencv2.framework/Versions/A/Headers',
+    
+    # Swift module configuration
+    'SWIFT_INCLUDE_PATHS' => '$(PODS_ROOT)/opencv2.framework/Versions/A/Headers',
+  
+  }
+ 
 end
