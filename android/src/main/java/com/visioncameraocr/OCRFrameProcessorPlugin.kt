@@ -14,7 +14,14 @@ import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.mrousavy.camera.frameprocessor.FrameProcessorPlugin
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageFormat
+import android.graphics.YuvImage
+import java.io.ByteArrayOutputStream
+import android.graphics.Matrix
 
+import android.util.Log
 class OCRFrameProcessorPlugin: FrameProcessorPlugin("scanOCR") {
 
     private fun getBlockArray(blocks: MutableList<Text.TextBlock>): WritableNativeArray {
@@ -103,16 +110,23 @@ class OCRFrameProcessorPlugin: FrameProcessorPlugin("scanOCR") {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
         @SuppressLint("UnsafeOptInUsageError")
-        val mediaImage: Image? = frame.getImage()
+        val mediaImage: Image? = frame.image
 
         if (mediaImage != null) {
-            val image = InputImage.fromMediaImage(mediaImage, frame.imageInfo.rotationDegrees)
-            val task: Task<Text> = recognizer.process(image)
-            try {
-                val text: Text = Tasks.await<Text>(task)
-                result.putString("text", text.text)
-                result.putArray("blocks", getBlockArray(text.textBlocks))
-            } catch (e: Exception) {
+            val bitmap = convertImageProxyToBitmap(frame)          
+            if (bitmap != null) {
+
+                val inputImage = InputImage.fromBitmap(bitmap, 0)
+                val task: Task<Text> = recognizer.process(inputImage)
+                try {
+                    val text: Text = Tasks.await(task)
+                    result.putString("text", text.text)
+                    result.putArray("blocks", getBlockArray(text.textBlocks))           
+
+                } catch (e: Exception) {
+                    return null
+                }
+            } else {
                 return null
             }
         }
@@ -121,4 +135,42 @@ class OCRFrameProcessorPlugin: FrameProcessorPlugin("scanOCR") {
         data.putMap("result", result)
         return data
     }
+
+    private fun convertImageProxyToBitmap(imageProxy: ImageProxy): Bitmap? {
+        val image = imageProxy.image ?: return null
+        val yBuffer = image.planes[0].buffer // Y
+        val uBuffer = image.planes[1].buffer // U
+        val vBuffer = image.planes[2].buffer // V
+
+        val ySize = yBuffer.remaining()
+        val uSize = uBuffer.remaining()
+        val vSize = vBuffer.remaining()
+
+        val nv21 = ByteArray(ySize + uSize + vSize)
+        yBuffer.get(nv21, 0, ySize)
+        vBuffer.get(nv21, ySize, vSize)
+        uBuffer.get(nv21, ySize + vSize, uSize)
+
+        val yuvImage = YuvImage(nv21, ImageFormat.NV21, imageProxy.width, imageProxy.height, null)
+        val out = ByteArrayOutputStream()
+        yuvImage.compressToJpeg(Rect(0, 0, imageProxy.width, imageProxy.height), 100, out)
+        val byteArray = out.toByteArray()
+        val originalBitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
+
+        // Rotate the bitmap based on the rotation degrees
+        val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+        val matrix = Matrix()
+        matrix.postRotate(rotationDegrees.toFloat())
+
+        return Bitmap.createBitmap(
+            originalBitmap, 
+            0, 
+            0, 
+            originalBitmap.width, 
+            originalBitmap.height, 
+            matrix, 
+            true
+        )
+    }
+
 }
